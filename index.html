@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Recurring Organiser</title>
+    <style>
+        /* === MATERIAL 3 EXPRESSIVE DARK THEME === */
+        :root {
+            --md-sys-color-background: #1A1C19;
+            --md-sys-color-on-background: #E2E3DD;
+            --md-sys-color-surface: #2A2C29; 
+            --md-sys-color-on-surface: #E2E3DD;
+            --md-sys-color-on-surface-variant: #C2C9BD; 
+            --md-sys-color-primary: #9CD67D; 
+            --md-sys-color-on-primary: #0C3900;
+            --md-sys-color-primary-container: #265108;
+            --md-sys-color-error: #FFB4AB; 
+            --md-sys-color-error-container: #93000A;
+            --md-sys-color-outline: #8C9388;
+            
+            /* Status Colors */
+            --status-red: #4A1515;   /* Overdue */
+            --status-green: #154A1C; /* < 2 Days */
+            --status-blue: #15304A;  /* > 2 Days */
+
+            --radius-large: 28px;
+            --radius-medium: 16px;
+            --spacing: 12px;
+        }
+
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: var(--md-sys-color-background);
+            color: var(--md-sys-color-on-background);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        h1 { text-align: center; font-size: 24px; font-weight: 700; margin: 20px 0; }
+
+        #main-view { flex: 1; display: flex; flex-direction: column; overflow: hidden; padding: var(--spacing); }
+        
+        #task-grid {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing);
+            align-content: start; 
+            padding-bottom: 160px; 
+        }
+
+        .task-card {
+            border-radius: var(--radius-medium);
+            padding: var(--spacing);
+            display: flex;
+            flex-direction: column;
+            cursor: pointer;
+            transition: transform 0.2s, background-color 0.3s;
+            user-select: none;
+            min-height: 110px;
+        }
+        .task-card:active { transform: scale(0.98); }
+
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+        .card-title { font-weight: bold; font-size: 18px; line-height: 1.2; padding-right: 8px;}
+        .card-date { font-size: 13px; color: var(--md-sys-color-on-surface-variant); margin-bottom: 8px; font-weight: 600;}
+        .card-preview { font-size: 14px; color: var(--md-sys-color-on-surface); margin-bottom: 12px; line-height: 1.4;}
+        
+        .tags-container { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; align-items: center;}
+        .tag-chip { 
+            background-color: rgba(255, 255, 255, 0.15); 
+            color: var(--md-sys-color-on-surface); 
+            font-size: 11px; 
+            font-weight: 600;
+            padding: 4px 10px; 
+            border-radius: 12px; 
+            white-space: nowrap; 
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .complete-btn {
+            background-color: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: 50%;
+            width: 36px;
+            height: 36px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+
+        /* === BOTTOM BAR === */
+        #bottom-bar {
+            position: fixed;
+            bottom: var(--spacing);
+            left: var(--spacing);
+            right: var(--spacing);
+            display: flex;
+            gap: 8px;
+            height: 56px;
+        }
+
+        .btn { border: none; border-radius: 100px; font-weight: 600; font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .btn-primary { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-primary); flex: 1;}
+        .btn-icon { background-color: var(--md-sys-color-primary-container); color: var(--md-sys-color-primary); flex: 0 0 56px; font-size: 20px;}
+
+        /* === MODALS === */
+        .modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: var(--md-sys-color-background);
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s cubic-bezier(0.2, 0, 0, 1);
+            padding: var(--spacing);
+        }
+        .modal.active { transform: translateY(0); }
+        
+        .modal-content {
+            background-color: var(--md-sys-color-surface);
+            border-radius: var(--radius-large);
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            overflow: hidden;
+            border: 1px solid var(--md-sys-color-outline);
+        }
+
+        .modal-header { font-size: 22px; font-weight: bold; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;}
+        
+        .editor-input { background: transparent; border: none; color: var(--md-sys-color-on-background); font-family: inherit; outline: none; width: 100%; margin-bottom: 16px;}
+        #edit-title { font-size: 20px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.2); padding-bottom: 8px;}
+        #edit-desc { flex: 1; resize: none; font-size: 16px; line-height: 1.5; background: rgba(0,0,0,0.1); padding: 12px; border-radius: 8px;}
+        
+        .form-row { display: flex; gap: 12px; margin-bottom: 16px; align-items: center; }
+        .form-group { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+        .form-label { font-size: 12px; color: var(--md-sys-color-on-surface-variant); font-weight: bold; text-transform: uppercase;}
+        .form-control { background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); color: white; padding: 10px; border-radius: 8px; font-size: 15px; font-family: inherit; width: 100%;}
+
+        .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+        .text-btn { background: none; border: none; font-weight: bold; font-size: 14px; text-transform: uppercase; cursor: pointer; padding: 8px 16px; }
+        .settings-btn { background: var(--md-sys-color-primary-container); color: var(--md-sys-color-primary); border: none; padding: 16px; border-radius: var(--radius-medium); font-size: 16px; font-weight: bold; margin-bottom: 12px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="main-view">
+        <h1>Organiser</h1>
+        <div id="task-grid"></div>
+        <div id="bottom-bar">
+            <button class="btn btn-icon" onclick="openSettings()">&#9881;&#65039;</button>
+            <button class="btn btn-primary" onclick="openEditor(null)">+ New Task</button>
+        </div>
+    </div>
+
+    <!-- Editor Modal -->
+    <div id="editor-modal" class="modal">
+        <div class="modal-content" id="editor-content-box">
+            <div class="modal-header">Edit Task</div>
+            
+            <input type="text" id="edit-title" class="editor-input" placeholder="Task Name...">
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <span class="form-label">Next Due Date</span>
+                    <input type="date" id="edit-date" class="form-control">
+                </div>
+                <div class="form-group">
+                    <span class="form-label">Time of Day</span>
+                    <input type="time" id="edit-time" class="form-control">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <span class="form-label">Interval (Days)</span>
+                    <input type="number" id="edit-interval" class="form-control" min="1" value="1" placeholder="e.g. 1 for daily">
+                </div>
+            </div>
+
+            <textarea id="edit-desc" class="editor-input" placeholder="Brief description of the task..."></textarea>
+            
+            <div class="modal-actions" style="justify-content: space-between;">
+                <button class="text-btn" id="delete-btn" style="color: var(--md-sys-color-on-surface-variant);" onclick="deleteTask()">&#128465;&#65039; DELETE</button>
+                <div>
+                    <button class="text-btn" style="color: var(--md-sys-color-error);" onclick="closeModal('editor-modal')">CANCEL</button>
+                    <button class="text-btn" style="color: var(--md-sys-color-primary);" onclick="saveTask()">SAVE</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settings-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Settings & Backup</div>
+            <div style="flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                <p style="color: var(--md-sys-color-on-surface-variant); text-align: center; margin-bottom: 24px;">
+                    Backup or restore your recurring tasks.
+                </p>
+                <button class="settings-btn" onclick="exportData()">&#128228; Export Backup (JSON)</button>
+                <button class="settings-btn" onclick="document.getElementById('import-file').click()">&#128229; Import Backup</button>
+                <input type="file" id="import-file" style="display: none;" accept=".json" onchange="importData(event)">
+            </div>
+            <div class="modal-actions">
+                <button class="text-btn" style="color: var(--md-sys-color-error);" onclick="closeModal('settings-modal')">CLOSE</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+    let tasks = JSON.parse(localStorage.getItem('md_organiser_tasks')) || [];
+    let currentEditId = null;
+
+    // Determines the background color based on time remaining
+    function getStatusColor(nextDueTimestamp) {
+        const now = Date.now();
+        const diff = nextDueTimestamp - now;
+        const twoDaysMs = 2 * 24 * 60 * 60 * 1000;
+
+        if (diff < 0) return 'var(--status-red)';
+        if (diff <= twoDaysMs) return 'var(--status-green)';
+        return 'var(--status-blue)';
+    }
+
+    function saveToStorage() {
+        // Sort chronologically (soonest at the top)
+        tasks.sort((a, b) => a.nextDue - b.nextDue);
+        localStorage.setItem('md_organiser_tasks', JSON.stringify(tasks));
+        renderGrid();
+    }
+
+    function renderGrid() {
+        const grid = document.getElementById('task-grid');
+        grid.innerHTML = '';
+
+        if(tasks.length === 0) {
+            grid.innerHTML = '<p style="text-align:center; color:gray; margin-top: 20px;">No tasks yet. Create one below!</p>';
+            return;
+        }
+
+        tasks.forEach((task) => {
+            const dateObj = new Date(task.nextDue);
+            const dateStr = dateObj.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+            
+            const card = document.createElement('div');
+            card.className = 'task-card';
+            card.style.backgroundColor = getStatusColor(task.nextDue);
+            
+            // Allow opening editor by clicking the card body
+            card.addEventListener('click', (e) => {
+                if(!e.target.closest('.complete-btn')) openEditor(task.id);
+            });
+
+            // Format interval text for display
+            let intervalText = task.intervalDays == 1 ? 'Daily' : 
+                               task.intervalDays == 7 ? 'Weekly' : 
+                               `Every ${task.intervalDays} days`;
+
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="card-title">${escapeHtml(task.title)}</div>
+                    <button class="complete-btn" onclick="completeTask('${task.id}'); event.stopPropagation();" title="Mark Completed">&#10004;</button>
+                </div>
+                <div class="card-date">&#128197; Due: ${dateStr} at ${task.actionTime}</div>
+                ${task.description ? `<div class="card-preview">${escapeHtml(task.description)}</div>` : ''}
+                <div class="tags-container">
+                    <div class="tag-chip">&#128260; ${intervalText}</div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    // Mark task complete and schedule next occurrence
+    function completeTask(id) {
+        const taskIndex = tasks.findIndex(t => t.id === id);
+        if (taskIndex === -1) return;
+        
+        const task = tasks[taskIndex];
+        
+        // Calculate next due date based on TODAY + Interval
+        const nextDate = new Date();
+        nextDate.setDate(nextDate.getDate() + parseInt(task.intervalDays));
+        
+        // Apply the specific action time
+        const [hours, minutes] = task.actionTime.split(':');
+        nextDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+        
+        task.nextDue = nextDate.getTime();
+        
+        saveToStorage(); // Saves, re-sorts, and re-renders with new colors
+    }
+
+    function openEditor(id) {
+        currentEditId = id;
+        const titleInput = document.getElementById('edit-title');
+        const descInput = document.getElementById('edit-desc');
+        const intervalInput = document.getElementById('edit-interval');
+        const timeInput = document.getElementById('edit-time');
+        const dateInput = document.getElementById('edit-date');
+        const delBtn = document.getElementById('delete-btn');
+
+        if (id) {
+            const task = tasks.find(t => t.id === id);
+            titleInput.value = task.title;
+            descInput.value = task.description;
+            intervalInput.value = task.intervalDays;
+            timeInput.value = task.actionTime;
+            
+            // Format timestamp for date input (YYYY-MM-DD)
+            const d = new Date(task.nextDue);
+            dateInput.value = d.toLocaleDateString('en-CA'); // 'en-CA' outputs YYYY-MM-DD reliably
+            
+            delBtn.style.display = 'block';
+        } else {
+            titleInput.value = '';
+            descInput.value = '';
+            intervalInput.value = 1; // Default to 1 day
+            
+            // Default to current date and a generic time
+            const now = new Date();
+            dateInput.value = now.toLocaleDateString('en-CA');
+            timeInput.value = '09:00';
+            
+            delBtn.style.display = 'none';
+        }
+        
+        document.getElementById('editor-modal').classList.add('active');
+    }
+
+    function saveTask() {
+        const title = document.getElementById('edit-title').value.trim() || 'Untitled Task';
+        const description = document.getElementById('edit-desc').value.trim();
+        const intervalDays = parseInt(document.getElementById('edit-interval').value) || 1;
+        const actionTime = document.getElementById('edit-time').value || '09:00';
+        const dateVal = document.getElementById('edit-date').value;
+        
+        // Construct the full timestamp from the date and time inputs
+        const nextDue = new Date(`${dateVal}T${actionTime}`).getTime();
+
+        if (currentEditId) {
+            const index = tasks.findIndex(t => t.id === currentEditId);
+            tasks[index] = { ...tasks[index], title, description, intervalDays, actionTime, nextDue };
+        } else {
+            tasks.push({ id: 'org_' + Date.now(), title, description, intervalDays, actionTime, nextDue });
+        }
+
+        saveToStorage();
+        closeModal('editor-modal');
+    }
+
+    function deleteTask() {
+        if(confirm("Are you sure you want to delete this task?")) {
+            tasks = tasks.filter(t => t.id !== currentEditId);
+            saveToStorage();
+            closeModal('editor-modal');
+        }
+    }
+
+    // --- BACKUP & SYNC (Adopted from Source 1 & 2) ---
+    function openSettings() { document.getElementById('settings-modal').classList.add('active'); }
+    
+    function exportData() {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(tasks));
+        const downloadAnchorNode = document.createElement('a');
+        downloadAnchorNode.setAttribute("href", dataStr);
+        downloadAnchorNode.setAttribute("download", "organiser_backup.json");
+        document.body.appendChild(downloadAnchorNode);
+        downloadAnchorNode.click();
+        downloadAnchorNode.remove();
+    }
+
+    function importData(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedTasks = JSON.parse(e.target.result);
+                if(Array.isArray(importedTasks)) {
+                    tasks = importedTasks;
+                    saveToStorage();
+                    closeModal('settings-modal');
+                    alert("Backup imported successfully!");
+                } else {
+                    alert("Invalid backup file structure.");
+                }
+            } catch (err) {
+                alert("Error reading file: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; 
+    }
+
+    // --- UTILS ---
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+    function escapeHtml(text) { return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+    renderGrid();
+</script>
+</body>
+</html>
